@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>モニター用タイマー</title>
+    <style>
+        /* モニター全体を使った視認性の高いデザイン */
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #121212; /* ダークモード背景 */
+            color: #ffffff;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+        }
+        #timer {
+            font-size: 25vw; /* 画面幅に応じた巨大なフォントサイズ */
+            font-variant-numeric: tabular-nums; /* 数字の幅を等幅にしてガタつきを防止 */
+            line-height: 1;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+        }
+        .controls {
+            margin-top: 5vh;
+        }
+        button {
+            font-size: 2rem;
+            padding: 15px 30px;
+            margin: 0 10px;
+            cursor: pointer;
+            background-color: #333333;
+            color: #ffffff;
+            border: 2px solid #555555;
+            border-radius: 8px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #555555;
+        }
+        button:active {
+            background-color: #777777;
+        }
+        .time-setting {
+            margin-bottom: 4vh;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .time-setting label {
+            font-size: 1.4rem;
+            color: #aaaaaa;
+        }
+        .time-input {
+            font-size: 1.8rem;
+            width: 3.5em;
+            padding: 8px 12px;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            border: 2px solid #555555;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .time-input:focus {
+            outline: none;
+            border-color: #888888;
+        }
+        .set-btn {
+            font-size: 1.4rem;
+            padding: 10px 22px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="time-setting">
+        <label for="inputMins">分</label>
+        <input id="inputMins" class="time-input" type="number" min="0" max="99" value="5">
+        <label for="inputSecs">秒</label>
+        <input id="inputSecs" class="time-input" type="number" min="0" max="59" value="0">
+        <button class="set-btn" onclick="setTime()">Set</button>
+    </div>
+
+    <div id="timer">05:00</div>
+    
+    <div class="controls">
+        <button onclick="startTimer()">Start</button>
+        <button onclick="pauseTimer()">Pause</button>
+        <button onclick="resetTimer()">Reset</button>
+    </div>
+
+    <script>
+        let initialTime = 300;
+        let timeInSecs = initialTime;
+        let ticker;
+
+        const timerDisplay = document.getElementById('timer');
+
+        function startTimer() {
+            if (!ticker) {
+                // 1000ミリ秒（1秒）ごとに tick 関数を実行
+                ticker = setInterval(tick, 1000);
+            }
+        }
+
+        function pauseTimer() {
+            clearInterval(ticker);
+            ticker = null;
+        }
+
+        function setTime() {
+            const mins = parseInt(document.getElementById('inputMins').value) || 0;
+            const secs = parseInt(document.getElementById('inputSecs').value) || 0;
+            initialTime = mins * 60 + secs;
+            pauseTimer();
+            timeInSecs = initialTime;
+            timerDisplay.style.color = '#ffffff';
+            updateDisplay();
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            timeInSecs = initialTime;
+            timerDisplay.style.color = '#ffffff';
+            updateDisplay();
+        }
+
+        function tick() {
+            if (timeInSecs > 0) {
+                timeInSecs--;
+                updateDisplay();
+            } else {
+                pauseTimer();
+                timerDisplay.style.color = "#ff4444"; // タイムアップ時に色を赤に変更
+            }
+        }
+
+        function updateDisplay() {
+            let mins = Math.floor(timeInSecs / 60);
+            let secs = timeInSecs % 60;
+            // 常に2桁表示にするための処理
+            timerDisplay.innerText = 
+                String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        }
+    </script>
+</body>
+</html>
