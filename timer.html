@@ -3,150 +3,240 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>モニター用タイマー</title>
+    <title>並列タイマー</title>
     <style>
-        /* モニター全体を使った視認性の高いデザイン */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #121212; /* ダークモード背景 */
+            background-color: #121212;
             color: #ffffff;
             font-family: 'Helvetica Neue', Arial, sans-serif;
-            overflow: hidden;
+            min-height: 100vh;
+            padding: 16px;
         }
-        #timer {
-            font-size: 25vw; /* 画面幅に応じた巨大なフォントサイズ */
-            font-variant-numeric: tabular-nums; /* 数字の幅を等幅にしてガタつきを防止 */
-            line-height: 1;
+
+        #total-section {
+            text-align: center;
+            padding: 16px 0 20px;
+            border-bottom: 2px solid #333;
+            margin-bottom: 16px;
+        }
+
+        #total-label {
+            font-size: 1rem;
+            color: #888;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        #total-display {
+            font-size: 4rem;
             font-weight: bold;
+            font-variant-numeric: tabular-nums;
             letter-spacing: 0.05em;
+            color: #4fc3f7;
         }
-        .controls {
-            margin-top: 5vh;
+
+        #timers-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-width: 600px;
+            margin: 0 auto;
         }
-        button {
-            font-size: 2rem;
-            padding: 15px 30px;
-            margin: 0 10px;
-            cursor: pointer;
-            background-color: #333333;
-            color: #ffffff;
-            border: 2px solid #555555;
-            border-radius: 8px;
-            transition: background-color 0.2s;
-        }
-        button:hover {
-            background-color: #555555;
-        }
-        button:active {
-            background-color: #777777;
-        }
-        .time-setting {
-            margin-bottom: 4vh;
+
+        .timer-row {
             display: flex;
             align-items: center;
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 10px 16px;
             gap: 12px;
         }
-        .time-setting label {
-            font-size: 1.4rem;
-            color: #aaaaaa;
+
+        .timer-row.running {
+            border-color: #4fc3f7;
         }
-        .time-input {
-            font-size: 1.8rem;
-            width: 3.5em;
-            padding: 8px 12px;
-            background-color: #1e1e1e;
-            color: #ffffff;
-            border: 2px solid #555555;
-            border-radius: 8px;
-            text-align: center;
+
+        .timer-index {
+            font-size: 0.85rem;
+            color: #666;
+            width: 20px;
+            text-align: right;
+            flex-shrink: 0;
         }
-        .time-input:focus {
+
+        .timer-label-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid #444;
+            color: #ccc;
+            font-size: 0.9rem;
+            padding: 2px 4px;
             outline: none;
-            border-color: #888888;
+            min-width: 0;
         }
-        .set-btn {
-            font-size: 1.4rem;
-            padding: 10px 22px;
-            margin: 0;
+
+        .timer-label-input:focus {
+            border-bottom-color: #888;
         }
+
+        .timer-display {
+            font-size: 1.6rem;
+            font-weight: bold;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.05em;
+            width: 7ch;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            font-size: 0.85rem;
+            padding: 6px 14px;
+            cursor: pointer;
+            border-radius: 6px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: #fff;
+            transition: background-color 0.15s;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        .btn:hover { background-color: #444; }
+        .btn:active { background-color: #555; }
+
+        .btn-start { border-color: #4fc3f7; color: #4fc3f7; }
+        .btn-start:hover { background-color: #1a3a4a; }
+
+        .btn-stop { border-color: #ef5350; color: #ef5350; }
+        .btn-stop:hover { background-color: #4a1a1a; }
+
+        .btn-reset { border-color: #666; color: #aaa; }
+        .btn-reset:hover { background-color: #2a2a2a; }
     </style>
 </head>
 <body>
 
-    <div class="time-setting">
-        <label for="inputMins">分</label>
-        <input id="inputMins" class="time-input" type="number" min="0" max="99" value="5">
-        <label for="inputSecs">秒</label>
-        <input id="inputSecs" class="time-input" type="number" min="0" max="59" value="0">
-        <button class="set-btn" onclick="setTime()">Set</button>
-    </div>
+<div id="total-section">
+    <div id="total-label">合計時間</div>
+    <div id="total-display">00:00:00</div>
+</div>
 
-    <div id="timer">05:00</div>
-    
-    <div class="controls">
-        <button onclick="startTimer()">Start</button>
-        <button onclick="pauseTimer()">Pause</button>
-        <button onclick="resetTimer()">Reset</button>
-    </div>
+<div id="timers-container"></div>
 
-    <script>
-        let initialTime = 300;
-        let timeInSecs = initialTime;
-        let ticker;
+<script>
+    const NUM_TIMERS = 10;
 
-        const timerDisplay = document.getElementById('timer');
+    const timers = Array.from({ length: NUM_TIMERS }, (_, i) => ({
+        id: i,
+        elapsed: 0,
+        running: false,
+        startedAt: null,
+        ticker: null,
+    }));
 
-        function startTimer() {
-            if (!ticker) {
-                // 1000ミリ秒（1秒）ごとに tick 関数を実行
-                ticker = setInterval(tick, 1000);
-            }
+    function pad(n, digits = 2) {
+        return String(n).padStart(digits, '0');
+    }
+
+    function formatTime(ms) {
+        const totalSecs = Math.floor(ms / 1000);
+        const h = Math.floor(totalSecs / 3600);
+        const m = Math.floor((totalSecs % 3600) / 60);
+        const s = totalSecs % 60;
+        return h > 0
+            ? `${pad(h)}:${pad(m)}:${pad(s)}`
+            : `${pad(m)}:${pad(s)}`;
+    }
+
+    function formatTotalTime(ms) {
+        const totalSecs = Math.floor(ms / 1000);
+        const h = Math.floor(totalSecs / 3600);
+        const m = Math.floor((totalSecs % 3600) / 60);
+        const s = totalSecs % 60;
+        return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+
+    function getDisplayEl(id) {
+        return document.getElementById(`display-${id}`);
+    }
+
+    function getRowEl(id) {
+        return document.getElementById(`row-${id}`);
+    }
+
+    function getCurrentElapsed(timer) {
+        if (timer.running) {
+            return timer.elapsed + (Date.now() - timer.startedAt);
         }
+        return timer.elapsed;
+    }
 
-        function pauseTimer() {
-            clearInterval(ticker);
-            ticker = null;
-        }
+    function updateTotalDisplay() {
+        const total = timers.reduce((sum, t) => sum + getCurrentElapsed(t), 0);
+        document.getElementById('total-display').textContent = formatTotalTime(total);
+    }
 
-        function setTime() {
-            const mins = parseInt(document.getElementById('inputMins').value) || 0;
-            const secs = parseInt(document.getElementById('inputSecs').value) || 0;
-            initialTime = mins * 60 + secs;
-            pauseTimer();
-            timeInSecs = initialTime;
-            timerDisplay.style.color = '#ffffff';
-            updateDisplay();
-        }
+    function startTimer(id) {
+        const t = timers[id];
+        if (t.running) return;
+        t.running = true;
+        t.startedAt = Date.now();
+        getRowEl(id).classList.add('running');
+        t.ticker = setInterval(() => {
+            getDisplayEl(id).textContent = formatTime(getCurrentElapsed(t));
+            updateTotalDisplay();
+        }, 100);
+        document.getElementById(`btn-start-${id}`).style.display = 'none';
+        document.getElementById(`btn-stop-${id}`).style.display = '';
+    }
 
-        function resetTimer() {
-            pauseTimer();
-            timeInSecs = initialTime;
-            timerDisplay.style.color = '#ffffff';
-            updateDisplay();
-        }
+    function stopTimer(id) {
+        const t = timers[id];
+        if (!t.running) return;
+        t.elapsed += Date.now() - t.startedAt;
+        t.running = false;
+        t.startedAt = null;
+        clearInterval(t.ticker);
+        t.ticker = null;
+        getRowEl(id).classList.remove('running');
+        getDisplayEl(id).textContent = formatTime(t.elapsed);
+        updateTotalDisplay();
+        document.getElementById(`btn-start-${id}`).style.display = '';
+        document.getElementById(`btn-stop-${id}`).style.display = 'none';
+    }
 
-        function tick() {
-            if (timeInSecs > 0) {
-                timeInSecs--;
-                updateDisplay();
-            } else {
-                pauseTimer();
-                timerDisplay.style.color = "#ff4444"; // タイムアップ時に色を赤に変更
-            }
-        }
+    function resetTimer(id) {
+        stopTimer(id);
+        timers[id].elapsed = 0;
+        getDisplayEl(id).textContent = formatTime(0);
+        updateTotalDisplay();
+    }
 
-        function updateDisplay() {
-            let mins = Math.floor(timeInSecs / 60);
-            let secs = timeInSecs % 60;
-            // 常に2桁表示にするための処理
-            timerDisplay.innerText = 
-                String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-        }
-    </script>
+    function buildUI() {
+        const container = document.getElementById('timers-container');
+        timers.forEach(t => {
+            const row = document.createElement('div');
+            row.className = 'timer-row';
+            row.id = `row-${t.id}`;
+            row.innerHTML = `
+                <span class="timer-index">${t.id + 1}</span>
+                <input class="timer-label-input" type="text" placeholder="ラベル" aria-label="タイマー${t.id + 1}のラベル">
+                <span class="timer-display" id="display-${t.id}">00:00</span>
+                <button class="btn btn-start" id="btn-start-${t.id}" onclick="startTimer(${t.id})">Start</button>
+                <button class="btn btn-stop" id="btn-stop-${t.id}" onclick="stopTimer(${t.id})" style="display:none">Stop</button>
+                <button class="btn btn-reset" onclick="resetTimer(${t.id})">Reset</button>
+            `;
+            container.appendChild(row);
+        });
+    }
+
+    buildUI();
+</script>
 </body>
 </html>
