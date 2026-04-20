@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工数タイマー</title>
+    <title>カウントダウンタイマー</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -97,6 +97,10 @@
             border-color: #4fc3f7;
         }
 
+        .timer-row.done {
+            border-color: #ef5350;
+        }
+
         .timer-index {
             font-size: 0.85rem;
             color: #666;
@@ -129,6 +133,10 @@
             width: 7ch;
             text-align: right;
             flex-shrink: 0;
+        }
+
+        .timer-display.done {
+            color: #ef5350;
         }
 
         .btn {
@@ -272,12 +280,18 @@
             .timer-row.running {
                 border-color: #1565c0;
             }
+            .timer-row.done {
+                border-color: #e53935;
+            }
             .timer-index {
                 color: #999;
             }
             .timer-label-input {
                 color: #000;
                 border-bottom-color: #bbb;
+            }
+            .timer-display.done {
+                color: #e53935;
             }
             #total-section {
                 max-width: none;
@@ -294,8 +308,8 @@
 <body>
 
 <nav id="tab-nav">
-    <a href="timer.html" class="tab-link active" id="tab-stopwatch">工数タイマー</a>
-    <a href="countdown.html" class="tab-link" id="tab-countdown">カウントダウン</a>
+    <a href="timer.html" class="tab-link" id="tab-stopwatch">工数タイマー</a>
+    <a href="countdown.html" class="tab-link active" id="tab-countdown">カウントダウン</a>
 </nav>
 
 <div id="total-section">
@@ -304,7 +318,7 @@
         <input id="session-title" type="text" placeholder="タイトル">
     </div>
     <div id="total-right">
-        <div id="total-label">合計時間</div>
+        <div id="total-label">合計残り時間</div>
         <div id="total-display">00:00:00</div>
     </div>
 </div>
@@ -318,21 +332,24 @@
 </div>
 
 <script>
-    const NUM_TIMERS = 10;
+    const INITIAL_MINUTES = [45, 30, 25, 20, 15, 10, 5, 3, 2, 1];
 
-    const timers = Array.from({ length: NUM_TIMERS }, (_, i) => ({
+    const timers = INITIAL_MINUTES.map((mins, i) => ({
         id: i,
-        elapsed: 0,
+        initial: mins * 60 * 1000,
+        remaining: mins * 60 * 1000,
         running: false,
         startedAt: null,
         ticker: null,
+        done: false,
     }));
 
-    function pad(n, digits = 2) {
-        return String(n).padStart(digits, '0');
+    function pad(n) {
+        return String(n).padStart(2, '0');
     }
 
     function formatTime(ms) {
+        if (ms <= 0) return '00:00';
         const totalSecs = Math.floor(ms / 1000);
         const h = Math.floor(totalSecs / 3600);
         const m = Math.floor((totalSecs % 3600) / 60);
@@ -343,6 +360,7 @@
     }
 
     function formatTotalTime(ms) {
+        if (ms <= 0) return '00:00:00';
         const totalSecs = Math.floor(ms / 1000);
         const h = Math.floor(totalSecs / 3600);
         const m = Math.floor((totalSecs % 3600) / 60);
@@ -358,27 +376,53 @@
         return document.getElementById(`row-${id}`);
     }
 
-    function getCurrentElapsed(timer) {
+    function getCurrentRemaining(timer) {
         if (timer.running) {
-            return timer.elapsed + (Date.now() - timer.startedAt);
+            return Math.max(0, timer.remaining - (Date.now() - timer.startedAt));
         }
-        return timer.elapsed;
+        return Math.max(0, timer.remaining);
     }
 
     function updateTotalDisplay() {
-        const total = timers.reduce((sum, t) => sum + getCurrentElapsed(t), 0);
+        const total = timers.reduce((sum, t) => sum + getCurrentRemaining(t), 0);
         document.getElementById('total-display').textContent = formatTotalTime(total);
+    }
+
+    function handleTimeout(id) {
+        const t = timers[id];
+        t.remaining = 0;
+        t.running = false;
+        t.startedAt = null;
+        clearInterval(t.ticker);
+        t.ticker = null;
+        t.done = true;
+        const displayEl = getDisplayEl(id);
+        displayEl.textContent = '00:00';
+        displayEl.classList.add('done');
+        getRowEl(id).classList.remove('running');
+        getRowEl(id).classList.add('done');
+        document.getElementById(`btn-start-${id}`).style.display = '';
+        document.getElementById(`btn-stop-${id}`).style.display = 'none';
+        updateTotalDisplay();
+        saveState();
     }
 
     function startTimer(id) {
         const t = timers[id];
-        if (t.running) return;
+        if (t.running || t.remaining <= 0) return;
         t.running = true;
+        t.done = false;
         t.startedAt = Date.now();
         getRowEl(id).classList.add('running');
+        getRowEl(id).classList.remove('done');
+        getDisplayEl(id).classList.remove('done');
         t.ticker = setInterval(() => {
-            getDisplayEl(id).textContent = formatTime(getCurrentElapsed(t));
+            const rem = getCurrentRemaining(t);
+            getDisplayEl(id).textContent = formatTime(rem);
             updateTotalDisplay();
+            if (rem <= 0) {
+                handleTimeout(id);
+            }
         }, 100);
         document.getElementById(`btn-start-${id}`).style.display = 'none';
         document.getElementById(`btn-stop-${id}`).style.display = '';
@@ -387,13 +431,13 @@
     function stopTimer(id) {
         const t = timers[id];
         if (!t.running) return;
-        t.elapsed += Date.now() - t.startedAt;
+        t.remaining = Math.max(0, t.remaining - (Date.now() - t.startedAt));
         t.running = false;
         t.startedAt = null;
         clearInterval(t.ticker);
         t.ticker = null;
         getRowEl(id).classList.remove('running');
-        getDisplayEl(id).textContent = formatTime(t.elapsed);
+        getDisplayEl(id).textContent = formatTime(t.remaining);
         updateTotalDisplay();
         document.getElementById(`btn-start-${id}`).style.display = '';
         document.getElementById(`btn-stop-${id}`).style.display = 'none';
@@ -402,8 +446,12 @@
 
     function resetTimer(id) {
         stopTimer(id);
-        timers[id].elapsed = 0;
-        getDisplayEl(id).textContent = formatTime(0);
+        const t = timers[id];
+        t.remaining = t.initial;
+        t.done = false;
+        getDisplayEl(id).textContent = formatTime(t.remaining);
+        getDisplayEl(id).classList.remove('done');
+        getRowEl(id).classList.remove('done');
         updateTotalDisplay();
         saveState();
     }
@@ -430,7 +478,7 @@
         if (t.running) return;
 
         const display = getDisplayEl(id);
-        const current = formatTime(t.elapsed);
+        const current = formatTime(t.remaining);
         const input = document.createElement('input');
         input.type = 'text';
         input.value = current;
@@ -439,9 +487,13 @@
         function commit() {
             const parsed = parseTimeInput(input.value);
             if (parsed !== null) {
-                t.elapsed = parsed;
+                t.remaining = parsed;
+                t.initial = parsed;
+                t.done = parsed <= 0;
+                display.classList.toggle('done', t.done);
+                getRowEl(id).classList.toggle('done', t.done);
             }
-            display.textContent = formatTime(t.elapsed);
+            display.textContent = formatTime(t.remaining);
             input.replaceWith(display);
             updateTotalDisplay();
             saveState();
@@ -464,10 +516,11 @@
             const row = document.createElement('div');
             row.className = 'timer-row';
             row.id = `row-${t.id}`;
+            const mins = INITIAL_MINUTES[t.id];
             row.innerHTML = `
                 <span class="timer-index">${t.id + 1}</span>
-                <input class="timer-label-input" type="text" placeholder="ラベル" aria-label="タイマー${t.id + 1}のラベル">
-                <span class="timer-display" id="display-${t.id}" onclick="startEditing(${t.id})" style="cursor:pointer" title="クリックして時間を編集">00:00</span>
+                <input class="timer-label-input" type="text" placeholder="${mins}分" aria-label="タイマー${t.id + 1}のラベル">
+                <span class="timer-display" id="display-${t.id}" onclick="startEditing(${t.id})" style="cursor:pointer" title="クリックして時間を編集">${formatTime(t.remaining)}</span>
                 <button class="btn btn-start" id="btn-start-${t.id}" onclick="startTimer(${t.id})">Start</button>
                 <button class="btn btn-stop" id="btn-stop-${t.id}" onclick="stopTimer(${t.id})" style="display:none">Stop</button>
                 <button class="btn btn-reset" onclick="resetTimer(${t.id})">Reset</button>
@@ -477,39 +530,50 @@
     }
 
     function startAll() {
-        timers.forEach(t => { if (!t.running) startTimer(t.id); });
+        timers.forEach(t => { if (!t.running && t.remaining > 0) startTimer(t.id); });
     }
 
     function saveState() {
         timers.forEach((t, i) => {
-            localStorage.setItem(`sw-elapsed-${i}`, getCurrentElapsed(t));
+            localStorage.setItem(`cd-remaining-${i}`, getCurrentRemaining(t));
+            localStorage.setItem(`cd-initial-${i}`, t.initial);
             const label = document.querySelector(`#row-${i} .timer-label-input`);
-            if (label) localStorage.setItem(`sw-label-${i}`, label.value);
+            if (label) localStorage.setItem(`cd-label-${i}`, label.value);
         });
     }
 
     function loadState() {
         timers.forEach((t, i) => {
-            const e = localStorage.getItem(`sw-elapsed-${i}`);
-            if (e !== null) t.elapsed = parseInt(e, 10);
+            const r = localStorage.getItem(`cd-remaining-${i}`);
+            const ini = localStorage.getItem(`cd-initial-${i}`);
+            if (r !== null) t.remaining = parseInt(r, 10);
+            if (ini !== null) t.initial = parseInt(ini, 10);
+            if (t.remaining <= 0) t.done = true;
         });
     }
 
     function restoreLabels() {
         timers.forEach((_, i) => {
             const label = document.querySelector(`#row-${i} .timer-label-input`);
-            const saved = localStorage.getItem(`sw-label-${i}`);
+            const saved = localStorage.getItem(`cd-label-${i}`);
             if (label && saved !== null) label.value = saved;
         });
     }
 
     function resetAll() {
-        timers.forEach(t => { stopTimer(t.id); t.elapsed = 0; });
-        timers.forEach((_, i) => {
-            getDisplayEl(i).textContent = formatTime(0);
-            const label = document.querySelector(`#row-${i} .timer-label-input`);
-            if (label) { label.value = ''; localStorage.removeItem(`sw-label-${i}`); }
-            localStorage.removeItem(`sw-elapsed-${i}`);
+        timers.forEach(t => {
+            stopTimer(t.id);
+            t.remaining = INITIAL_MINUTES[t.id] * 60 * 1000;
+            t.initial = t.remaining;
+            t.done = false;
+            getDisplayEl(t.id).textContent = formatTime(t.remaining);
+            getDisplayEl(t.id).classList.remove('done');
+            getRowEl(t.id).classList.remove('done');
+            const label = document.querySelector(`#row-${t.id} .timer-label-input`);
+            if (label) { label.value = ''; }
+            localStorage.removeItem(`cd-remaining-${t.id}`);
+            localStorage.removeItem(`cd-initial-${t.id}`);
+            localStorage.removeItem(`cd-label-${t.id}`);
         });
         updateTotalDisplay();
     }
@@ -529,16 +593,21 @@
 
     // タイトル復元・保存
     const titleEl = document.getElementById('session-title');
-    const savedTitle = localStorage.getItem('sw-title');
+    const savedTitle = localStorage.getItem('cd-title');
     if (savedTitle !== null) titleEl.value = savedTitle;
     titleEl.addEventListener('input', () => {
-        localStorage.setItem('sw-title', titleEl.value);
+        localStorage.setItem('cd-title', titleEl.value);
     });
 
     buildUI();
     loadState();
     timers.forEach(t => {
-        getDisplayEl(t.id).textContent = formatTime(t.elapsed);
+        const displayEl = getDisplayEl(t.id);
+        displayEl.textContent = formatTime(t.remaining);
+        if (t.done) {
+            displayEl.classList.add('done');
+            getRowEl(t.id).classList.add('done');
+        }
     });
     restoreLabels();
     updateTotalDisplay();
