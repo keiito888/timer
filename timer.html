@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>並列タイマー</title>
+    <title>工数タイマー</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -118,6 +118,72 @@
 
         .btn-reset { border-color: #666; color: #aaa; }
         .btn-reset:hover { background-color: #2a2a2a; }
+
+        #print-btn {
+            display: block;
+            margin: 20px auto 0;
+            font-size: 0.9rem;
+            padding: 8px 20px;
+            cursor: pointer;
+            border-radius: 6px;
+            border: 1px solid #888;
+            background-color: #2a2a2a;
+            color: #ccc;
+            transition: background-color 0.15s;
+            max-width: 600px;
+            width: 100%;
+        }
+        #print-btn:hover { background-color: #3a3a3a; }
+
+        .timer-edit-input {
+            background: #2a2a2a;
+            border: 1px solid #4fc3f7;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 1.6rem;
+            font-weight: bold;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            width: 7ch;
+            outline: none;
+            padding: 0 2px;
+        }
+
+        @media print {
+            body {
+                background-color: #fff;
+                color: #000;
+                padding: 12px;
+                min-height: 0;
+            }
+            #total-section {
+                border-bottom: 2px solid #999;
+            }
+            #total-label {
+                color: #555;
+            }
+            #total-display {
+                color: #1565c0;
+            }
+            .timer-row {
+                background-color: #f5f5f5;
+                border: 1px solid #ccc;
+                break-inside: avoid;
+            }
+            .timer-row.running {
+                border-color: #1565c0;
+            }
+            .timer-index {
+                color: #999;
+            }
+            .timer-label-input {
+                color: #000;
+                border-bottom-color: #bbb;
+            }
+            .btn, #print-btn {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -128,6 +194,8 @@
 </div>
 
 <div id="timers-container"></div>
+
+<button id="print-btn" onclick="window.print()">🖨️ PDF印刷</button>
 
 <script>
     const NUM_TIMERS = 10;
@@ -218,6 +286,46 @@
         updateTotalDisplay();
     }
 
+    function parseTimeInput(str) {
+        const parts = str.trim().split(':').map(Number);
+        if (parts.some(isNaN)) return null;
+        if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000;
+        if (parts.length === 3) return (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000;
+        return null;
+    }
+
+    function startEditing(id) {
+        const t = timers[id];
+        if (t.running) return;
+
+        const display = getDisplayEl(id);
+        const current = formatTime(t.elapsed);
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = current;
+        input.className = 'timer-display timer-edit-input';
+
+        function commit() {
+            const parsed = parseTimeInput(input.value);
+            if (parsed !== null) {
+                t.elapsed = parsed;
+            }
+            display.textContent = formatTime(t.elapsed);
+            input.replaceWith(display);
+            updateTotalDisplay();
+        }
+
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') input.blur();
+            if (e.key === 'Escape') { input.value = current; input.blur(); }
+        });
+
+        display.replaceWith(input);
+        input.focus();
+        input.select();
+    }
+
     function buildUI() {
         const container = document.getElementById('timers-container');
         timers.forEach(t => {
@@ -227,7 +335,7 @@
             row.innerHTML = `
                 <span class="timer-index">${t.id + 1}</span>
                 <input class="timer-label-input" type="text" placeholder="ラベル" aria-label="タイマー${t.id + 1}のラベル">
-                <span class="timer-display" id="display-${t.id}">00:00</span>
+                <span class="timer-display" id="display-${t.id}" onclick="startEditing(${t.id})" style="cursor:pointer" title="クリックして時間を編集">00:00</span>
                 <button class="btn btn-start" id="btn-start-${t.id}" onclick="startTimer(${t.id})">Start</button>
                 <button class="btn btn-stop" id="btn-stop-${t.id}" onclick="stopTimer(${t.id})" style="display:none">Stop</button>
                 <button class="btn btn-reset" onclick="resetTimer(${t.id})">Reset</button>
